@@ -52,7 +52,7 @@ $("saveNames").addEventListener("click",()=>{
   try{
     localStorage.setItem(NK,JSON.stringify(names));
     $("savedMsg").style.display="block";
-    setTimeout(()=>$("savedMsg").style.display="none",1200);
+    setTimeout(()=>{ window.location.href="index.html"; },700);
   }catch(e){
     alert("保存できませんでした。");
   }

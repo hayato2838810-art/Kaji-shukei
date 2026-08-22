@@ -33,6 +33,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;
 <h1>家事分担</h1>
 
 <div class="topnav">
+<a class="navbtn secondary" href="report.html">月別回数表</a>
 <a class="navbtn secondary" href="settings.html">設定</a>
 </div>
 
@@ -144,9 +145,18 @@ $("addRecord").addEventListener("click",()=>{
  records.push({id:uid(),date:$("date").value||new Date().toISOString().slice(0,10),person:Number($("person").value),choreId:c.id,choreName:c.name,amount:Number(c.amount)});
  if(persist()){render();$("savedMsg").style.display="block";setTimeout(()=>$("savedMsg").style.display="none",1200)}
 });
-$("saveNames").addEventListener("click",()=>{names=[$("p1").value.trim()||"1人目",$("p2").value.trim()||"2人目"];if(persist()){render();alert("名前を保存しました")}});
 $("reset").addEventListener("click",()=>{if(confirm("記録した家事をすべてリセットしますか？")){records=[];if(persist())render()}});
 window.delRecord=i=>{records.splice(i,1);if(persist())render()};
+
+
+function reloadStoredData(){
+  chores=load(CK,chores);
+  records=load(RK,records);
+  names=load(NK,names);
+  render();
+}
+window.addEventListener("pageshow",reloadStoredData);
+window.addEventListener("focus",reloadStoredData);
 
 render();
 if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});

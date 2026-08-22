@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>端末間同期</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+body{margin:0;background:#f5f5f7;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}
+main{max-width:760px;margin:auto;padding:20px 16px 50px}
+h1{font-size:30px}.card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 1px 8px #0001}
+label{display:block;font-size:13px;color:#666;margin:10px 0 5px}
+input,button,a{width:100%;box-sizing:border-box;padding:12px;border:1px solid #d2d2d7;border-radius:12px;font-size:16px}
+button,a{margin-top:12px;border:0;background:#1d1d1f;color:#fff;font-weight:700;text-decoration:none;display:block;text-align:center}
+.secondary{background:#e8e8ed;color:#1d1d1f}.muted{font-size:13px;color:#777}.ok{color:#16794a}.warn{color:#b42318}
+code{word-break:break-all}
+</style>
+</head>
+<body><main>
+<h1>端末間同期</h1>
+<a class="secondary" href="index.html">← 家事記録に戻る</a>
+
+<section class="card">
+<h2>Supabase設定</h2>
+<p class="muted">同じSupabase URL・Anon Key・共有コードを2台のiPhoneに設定すると、データを共有できます。</p>
+<label>Supabase Project URL</label>
+<input id="url" placeholder="https://xxxxx.supabase.co">
+<label>Supabase Anon Key</label>
+<input id="anonKey" placeholder="eyJ...">
+<label>共有コード</label>
+<input id="householdId" placeholder="例：kaji-7f29a8c3">
+<button id="save">同期設定を保存</button>
+<button id="test" class="secondary">接続テスト</button>
+<p id="status" class="muted"></p>
+</section>
+
+<section class="card">
+<h2>使い方</h2>
+<p class="muted">最初にSupabaseでプロジェクトを1つ作り、同梱の <code>supabase_setup.sql</code> をSQL Editorで1回実行してください。その後、このページにProject URLとAnon Keyを入力します。</p>
+<p class="muted">2台目のiPhoneにも、まったく同じ3項目を入力してください。</p>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const KEY="kaji-cloud-config-v1";
+const $=id=>document.getElementById(id);
+try{
+ const c=JSON.parse(localStorage.getItem(KEY)||"null");
+ if(c){$("url").value=c.url||"";$("anonKey").value=c.anonKey||"";$("householdId").value=c.householdId||""}
+}catch(e){}
+$("save").onclick=()=>{
+ const cfg={url:$("url").value.trim(),anonKey:$("anonKey").value.trim(),householdId:$("householdId").value.trim()};
+ if(!cfg.url||!cfg.anonKey||!cfg.householdId){$("status").textContent="3項目すべて入力してください。";$("status").className="warn";return}
+ localStorage.setItem(KEY,JSON.stringify(cfg));
+ $("status").textContent="保存しました。2台目にも同じ設定を入力してください。";
+ $("status").className="ok";
+};
+$("test").onclick=async()=>{
+ const cfg={url:$("url").value.trim(),anonKey:$("anonKey").value.trim(),householdId:$("householdId").value.trim()};
+ try{
+   const client=supabase.createClient(cfg.url,cfg.anonKey);
+   const {error}=await client.from("household_settings").select("household_id").limit(1);
+   if(error) throw error;
+   $("status").textContent="接続できました。";
+   $("status").className="ok";
+ }catch(e){
+   $("status").textContent="接続できませんでした。URL・Anon Key・SQL設定を確認してください。";
+   $("status").className="warn";
+ }
+};
+</script>
+</main></body></html>

@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#ffffff">
 <title>設定</title>
 <link rel="manifest" href="manifest.webmanifest">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="cloud.js"></script>
 <style>
 body{margin:0;background:#f5f5f7;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}
 main{max-width:760px;margin:auto;padding:20px 16px 50px}
@@ -47,15 +49,17 @@ let names=load(NK,["自分","パートナー"]);
 $("p1").value=names[0];
 $("p2").value=names[1];
 
-$("saveNames").addEventListener("click",()=>{
+$("saveNames").addEventListener("click",async()=>{
   names=[$("p1").value.trim()||"1人目",$("p2").value.trim()||"2人目"];
   try{
     localStorage.setItem(NK,JSON.stringify(names));
+    if(cloudReady()) await pushNames();
     $("savedMsg").style.display="block";
     setTimeout(()=>{ window.location.href="index.html"; },700);
   }catch(e){
     alert("保存できませんでした。");
   }
 });
+(async()=>{if(cloudReady()){await initCloud();await pullCloudData();names=load(NK,names);$("p1").value=names[0];$("p2").value=names[1];}})();
 </script>
 </main></body></html>

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>家事分担</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+body{margin:0;background:#f5f5f7;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}
+main{max-width:760px;margin:auto;padding:20px 16px 50px}
+h1{font-size:30px}.card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 1px 8px #0001}
+.grid,.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:13px;color:#666;margin:10px 0 5px}
+input,select,button{width:100%;box-sizing:border-box;padding:12px;border:1px solid #d2d2d7;border-radius:12px;font-size:16px}
+button{margin-top:12px;border:0;background:#1d1d1f;color:#fff;font-weight:700}
+.secondary{background:#e8e8ed;color:#1d1d1f}.danger{background:#fff0f0;color:#b42318}
+.small{width:auto;margin:0;padding:7px 10px;font-size:13px}
+.stat,.balance{background:#f5f5f7;border-radius:14px;padding:14px}.stat b{display:block;font-size:24px;margin:5px 0}
+.balance{text-align:center;margin-top:12px}.big{font-size:28px;font-weight:800}
+.muted{font-size:13px;color:#777}table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px 6px;border-bottom:1px solid #eee;text-align:left}.scroll{overflow-x:auto}
+@media(max-width:520px){.grid,.summary{grid-template-columns:1fr}}
+</style>
+</head>
+<body><main>
+<h1>家事分担</h1>
+
+<section class="card">
+<h2>家事を記録</h2>
+<div class="grid">
+<div><label>担当者</label><select id="person"></select></div>
+<div><label>日付</label><input id="date" type="date"></div>
+</div>
+<label>実施した家事</label><select id="chore"></select>
+<p id="amountText" class="muted"></p>
+<button id="addRecord">この家事を記録する</button>
+</section>
+
+<section class="card">
+<h2>2人の設定</h2>
+<div class="grid">
+<div><label>1人目</label><input id="p1" value="自分"></div>
+<div><label>2人目</label><input id="p2" value="パートナー"></div>
+</div>
+<button id="saveNames" class="secondary">名前を保存</button>
+</section>
+
+
+
+
+
+<section class="card">
+<h2>現在の集計</h2>
+<div id="summary" class="summary"></div>
+<div id="balance" class="balance"></div>
+<p class="muted">差分は「1人目の合計 − 2人目の合計」で常時計算します。</p>
+</section>
+
+<section class="card">
+<h2>記録履歴</h2>
+<div class="scroll"><table><thead><tr><th>日付</th><th>担当</th><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="history"></tbody></table></div>
+<button id="reset" class="danger">家事の記録をすべてリセット</button>
+<p class="muted">家事項目と金額は残り、実施履歴だけ削除されます。</p>
+</section>
+
+<script>
+const CK="kaji-chores-v2",RK="kaji-records-v2",NK="kaji-names-v2";
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
+let chores=JSON.parse(localStorage.getItem(CK)||"null")||[
+{id:uid(),name:"皿洗い",amount:100},{id:uid(),name:"洗濯",amount:150},
+{id:uid(),name:"掃除",amount:200},{id:uid(),name:"料理",amount:300}
+];
+let records=JSON.parse(localStorage.getItem(RK)||"[]");
+let names=JSON.parse(localStorage.getItem(NK)||'["自分","パートナー"]');
+const $=id=>document.getElementById(id);
+const yen=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY",maximumFractionDigits:0}).format(n);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+$("date").value=new Date().toISOString().slice(0,10);$("p1").value=names[0];$("p2").value=names[1];
+
+function save(){localStorage.setItem(CK,JSON.stringify(chores));localStorage.setItem(RK,JSON.stringify(records));localStorage.setItem(NK,JSON.stringify(names));render()}
+function render(){
+ $("person").innerHTML=names.map((n,i)=>`<option value="${i}">${esc(n)}</option>`).join("");
+ $("master").innerHTML=chores.length?chores.map(c=>`<tr><td>${esc(c.name)}</td><td>${yen(c.amount)}</td><td><button class="secondary small" onclick="delChore('${c.id}')">削除</button></td></tr>`).join(""):'<tr><td colspan="3">家事項目がありません</td></tr>';
+ $("chore").innerHTML=chores.length?chores.map(c=>`<option value="${c.id}">${esc(c.name)}（${yen(c.amount)}）</option>`).join(""):'<option value="">家事を追加してください</option>';
+ updateAmount();
+ let total=[0,0],count=[0,0];
+ records.forEach(r=>{if(r.person===0||r.person===1){total[r.person]+=Number(r.amount);count[r.person]++}});
+ $("summary").innerHTML=[0,1].map(i=>`<div class="stat"><span class="muted">${esc(names[i])}</span><b>${yen(total[i])}</b><span>${count[i]}件</span></div>`).join("");
+ const d=total[0]-total[1];
+ $("balance").innerHTML=d===0?`<div class="muted">現在の差分</div><div class="big">±${yen(0)}</div><div>2人の負担は同額です</div>`:
+ d>0?`<div class="muted">現在の差分</div><div class="big">+${yen(d)}</div><div>${esc(names[0])}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`:
+ `<div class="muted">現在の差分</div><div class="big">−${yen(Math.abs(d))}</div><div>${esc(names[1])}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`;
+ $("history").innerHTML=records.length?records.slice().reverse().map((r,j)=>{let i=records.length-1-j;return `<tr><td>${esc(r.date)}</td><td>${esc(names[r.person]||"不明")}</td><td>${esc(r.choreName)}</td><td>${yen(r.amount)}</td><td><button class="secondary small" onclick="delRecord(${i})">削除</button></td></tr>`}).join(""):'<tr><td colspan="5">まだ記録がありません</td></tr>';
+}
+function updateAmount(){const c=chores.find(x=>x.id===$("chore").value);$("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:""}
+$("saveNames").onclick=()=>{names=[$("p1").value.trim()||"1人目",$("p2").value.trim()||"2人目"];save();alert("名前を保存しました")};
+$("addChore").onclick=()=>{const name=$("newName").value.trim(),amount=Number($("newAmount").value);if(!name)return alert("家事名を入力してください");if(!Number.isFinite(amount)||amount<0)return alert("0円以上の金額を入力してください");chores.push({id:uid(),name,amount});$("newName").value="";$("newAmount").value="";save()};
+$("chore").onchange=updateAmount;
+$("addRecord").onclick=()=>{const c=chores.find(x=>x.id===$("chore").value);if(!c)return alert("先に家事項目を追加してください");records.push({id:uid(),date:$("date").value,person:Number($("person").value),choreId:c.id,choreName:c.name,amount:c.amount});save()};
+$("reset").onclick=()=>{if(confirm("記録した家事をすべてリセットしますか？\n家事項目と金額は残ります。")){records=[];save()}};
+window.delChore=id=>{const c=chores.find(x=>x.id===id);if(c&&confirm(`「${c.name}」を家事項目から削除しますか？\n過去の記録は残ります。`)){chores=chores.filter(x=>x.id!==id);save()}};
+window.delRecord=i=>{records.splice(i,1);save()};
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
+save();
+</script>
+
+<section class="card">
+<h2>家事を追加</h2>
+<p class="muted">ここでは記録ではなく「皿洗い 100円」のような新しい家事項目を作ります。</p>
+<div class="grid">
+<div><label>家事名</label><input id="newName" placeholder="例：皿洗い"></div>
+<div><label>金額</label><input id="newAmount" type="number" min="0" inputmode="numeric" placeholder="例：100"></div>
+</div>
+<button id="addChore">家事項目を追加</button>
+<h3>登録済みの家事</h3>
+<div class="scroll"><table><thead><tr><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="master"></tbody></table></div>
+</section>
+</main></body></html>

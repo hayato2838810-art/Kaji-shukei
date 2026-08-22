@@ -9,24 +9,32 @@
 <style>
 body{margin:0;background:#f5f5f7;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}
 main{max-width:760px;margin:auto;padding:20px 16px 50px}
-h1{font-size:30px}.card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 1px 8px #0001}
+h1{font-size:30px;margin:8px 0 18px}
+.card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 1px 8px #0001}
 .grid,.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 label{display:block;font-size:13px;color:#666;margin:10px 0 5px}
-input,select,button{width:100%;box-sizing:border-box;padding:12px;border:1px solid #d2d2d7;border-radius:12px;font-size:16px;background:#fff;color:#1d1d1f}
-button{margin-top:12px;border:0;background:#1d1d1f;color:#fff;font-weight:700}
-.secondary{background:#e8e8ed;color:#1d1d1f}.danger{background:#fff0f0;color:#b42318}.small{width:auto;margin:0;padding:7px 10px;font-size:13px}
+input,select,button,a.navbtn{width:100%;box-sizing:border-box;padding:12px;border:1px solid #d2d2d7;border-radius:12px;font-size:16px;background:#fff;color:#1d1d1f}
+button,a.navbtn{margin-top:12px;border:0;background:#1d1d1f;color:#fff;font-weight:700;text-decoration:none;display:block;text-align:center}
+.secondary{background:#e8e8ed!important;color:#1d1d1f!important}.danger{background:#fff0f0!important;color:#b42318!important}
+.small{width:auto;margin:0;padding:7px 10px;font-size:13px}
 .stat,.balance{background:#f5f5f7;border-radius:14px;padding:14px}.stat b{display:block;font-size:24px;margin:5px 0}
 .balance{text-align:center;margin-top:12px}.big{font-size:28px;font-weight:800}.muted{font-size:13px;color:#777}
 .success{padding:10px;margin-top:10px;background:#eef9f1;border-radius:10px;color:#16794a;display:none}
 table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;border-bottom:1px solid #eee;text-align:left}.scroll{overflow-x:auto}
-.barRow{display:grid;grid-template-columns:70px 1fr 90px;gap:8px;align-items:center;margin:12px 0}
-.barBg{height:14px;background:#eee;border-radius:7px;overflow:hidden;margin:3px 0}.bar1{height:100%;background:#333}.bar2{height:100%;background:#999}
-@media(max-width:520px){.grid,.summary{grid-template-columns:1fr}.barRow{grid-template-columns:58px 1fr 80px}}
+.monthCard{background:#f5f5f7;border-radius:14px;padding:14px;margin:10px 0}
+.monthHead{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.monthDiff{font-weight:800;font-size:18px}.monthTotals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.mini{background:#fff;border-radius:10px;padding:10px}
+.topnav{display:flex;gap:8px;margin-bottom:14px}.topnav a{flex:1;margin:0}
+@media(max-width:520px){.grid,.summary,.monthTotals{grid-template-columns:1fr}}
 </style>
 </head>
-<body>
-<main>
+<body><main>
 <h1>家事分担</h1>
+
+<div class="topnav">
+<a class="navbtn secondary" href="chores.html">家事項目を管理</a>
+</div>
 
 <section class="card">
 <h2>家事を記録</h2>
@@ -48,9 +56,8 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;
 </section>
 
 <section class="card">
-<h2>月別の金額推移</h2>
+<h2>月別の金額・差分</h2>
 <div id="monthly"></div>
-<p id="legend" class="muted"></p>
 </section>
 
 <section class="card">
@@ -74,209 +81,104 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;
 <button type="button" id="saveNames" class="secondary">名前を保存</button>
 </section>
 
-<section class="card">
-<h2>家事を追加</h2>
-<p class="muted">「皿洗い 100円」のような家事項目を追加します。</p>
-<div class="grid">
-<div><label>家事名</label><input id="newName" placeholder="例：皿洗い"></div>
-<div><label>金額</label><input id="newAmount" type="number" min="0" inputmode="numeric" placeholder="例：100"></div>
-</div>
-<button type="button" id="addChore">家事項目を追加</button>
-<h3>登録済みの家事</h3>
-<div class="scroll">
-<table>
-<thead><tr><th>家事</th><th>金額</th><th></th></tr></thead>
-<tbody id="master"></tbody>
-</table>
-</div>
-</section>
-
 <script>
 const CK="kaji-chores-v4",RK="kaji-records-v4",NK="kaji-names-v4";
-const OLD_CK="kaji-chores-v2",OLD_RK="kaji-records-v2",OLD_NK="kaji-names-v2";
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 const $=id=>document.getElementById(id);
 const yen=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY",maximumFractionDigits:0}).format(n);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+function load(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(e){return f}}
 
-function load(key,fallback){
-  try{
-    const v=localStorage.getItem(key);
-    return v===null?fallback:JSON.parse(v);
-  }catch(e){ return fallback; }
-}
-
-let chores=load(CK,null) || load(OLD_CK,null) || [
+let chores=load(CK,[
 {id:uid(),name:"皿洗い",amount:100},
 {id:uid(),name:"洗濯",amount:150},
 {id:uid(),name:"掃除",amount:200},
 {id:uid(),name:"料理",amount:300}
-];
-let records=load(RK,null);
-if(records===null) records=load(OLD_RK,[]);
-let names=load(NK,null) || load(OLD_NK,["自分","パートナー"]);
+]);
+let records=load(RK,[]);
+let names=load(NK,["自分","パートナー"]);
 
 $("date").value=new Date().toISOString().slice(0,10);
-$("p1").value=names[0];
-$("p2").value=names[1];
+$("p1").value=names[0];$("p2").value=names[1];
 
 function persist(){
-  try{
-    localStorage.setItem(CK,JSON.stringify(chores));
-    localStorage.setItem(RK,JSON.stringify(records));
-    localStorage.setItem(NK,JSON.stringify(names));
-    return true;
-  }catch(e){
-    alert("保存できませんでした。Safariのサイトデータ設定をご確認ください。");
-    return false;
-  }
+ try{
+  localStorage.setItem(CK,JSON.stringify(chores));
+  localStorage.setItem(RK,JSON.stringify(records));
+  localStorage.setItem(NK,JSON.stringify(names));
+  return true;
+ }catch(e){alert("保存できませんでした。");return false}
 }
 
 function updateAmount(){
-  const c=chores.find(x=>x.id===$("chore").value);
-  $("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:"";
+ const c=chores.find(x=>x.id===$("chore").value);
+ $("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:"";
 }
 
 function renderMonthly(){
-  const map={};
-  records.forEach(r=>{
-    const month=(r.date||"").slice(0,7);
-    const p=Number(r.person);
-    if(!month || (p!==0 && p!==1)) return;
-    if(!map[month]) map[month]=[0,0];
-    map[month][p]+=Number(r.amount)||0;
-  });
-
-  const months=Object.keys(map).sort();
-  if(!months.length){
-    $("monthly").innerHTML='<p class="muted">記録すると月別推移が表示されます。</p>';
-    $("legend").textContent="";
-    return;
-  }
-
-  const max=Math.max(...months.flatMap(m=>map[m]),1);
-  $("monthly").innerHTML=months.map(m=>{
-    const a=map[m];
-    const w1=Math.round(a[0]/max*100);
-    const w2=Math.round(a[1]/max*100);
-    return `<div class="barRow">
-      <div>${m.replace("-","/")}</div>
-      <div>
-        <div class="barBg"><div class="bar1" style="width:${w1}%"></div></div>
-        <div class="barBg"><div class="bar2" style="width:${w2}%"></div></div>
-      </div>
-      <div>${yen(a[0])}<br>${yen(a[1])}</div>
-    </div>`;
-  }).join("");
-  $("legend").textContent=`上段：${names[0]}　下段：${names[1]}`;
+ const map={};
+ records.forEach(r=>{
+   const m=(r.date||"").slice(0,7),p=Number(r.person);
+   if(!m||(p!==0&&p!==1))return;
+   if(!map[m])map[m]=[0,0];
+   map[m][p]+=Number(r.amount)||0;
+ });
+ const months=Object.keys(map).sort().reverse();
+ if(!months.length){
+   $("monthly").innerHTML='<p class="muted">記録すると月別の金額と差分が表示されます。</p>';
+   return;
+ }
+ $("monthly").innerHTML=months.map(m=>{
+   const a=map[m],d=a[0]-a[1];
+   const diffText=d===0?"差分 ±¥0":d>0?`差分 +${yen(d)}`:`差分 −${yen(Math.abs(d))}`;
+   const who=d===0?"同額":d>0?`${esc(names[0])}が多い`:`${esc(names[1])}が多い`;
+   return `<div class="monthCard">
+     <div class="monthHead"><strong>${m.replace("-","/")}</strong><span class="monthDiff">${diffText}</span></div>
+     <div class="muted">${who}</div>
+     <div class="monthTotals">
+       <div class="mini"><span class="muted">${esc(names[0])}</span><br><strong>${yen(a[0])}</strong></div>
+       <div class="mini"><span class="muted">${esc(names[1])}</span><br><strong>${yen(a[1])}</strong></div>
+     </div>
+   </div>`;
+ }).join("");
 }
 
 function render(){
-  $("person").innerHTML=names.map((n,i)=>`<option value="${i}">${esc(n)}</option>`).join("");
+ $("person").innerHTML=names.map((n,i)=>`<option value="${i}">${esc(n)}</option>`).join("");
+ $("chore").innerHTML=chores.length?chores.map(c=>`<option value="${c.id}">${esc(c.name)}（${yen(c.amount)}）</option>`).join(""):'<option value="">家事項目がありません</option>';
+ updateAmount();
 
-  $("master").innerHTML=chores.length
-    ? chores.map(c=>`<tr><td>${esc(c.name)}</td><td>${yen(c.amount)}</td><td><button type="button" class="secondary small" onclick="delChore('${c.id}')">削除</button></td></tr>`).join("")
-    : '<tr><td colspan="3">家事項目がありません</td></tr>';
+ const total=[0,0],count=[0,0];
+ records.forEach(r=>{const p=Number(r.person);if(p===0||p===1){total[p]+=Number(r.amount)||0;count[p]++}});
+ $("summary").innerHTML=[0,1].map(i=>`<div class="stat"><span class="muted">${esc(names[i])}</span><b>${yen(total[i])}</b><span>${count[i]}件</span></div>`).join("");
 
-  $("chore").innerHTML=chores.length
-    ? chores.map(c=>`<option value="${c.id}">${esc(c.name)}（${yen(c.amount)}）</option>`).join("")
-    : '<option value="">家事を追加してください</option>';
+ const d=total[0]-total[1];
+ $("balance").innerHTML=d===0
+ ? `<div class="muted">現在の差分</div><div class="big">±${yen(0)}</div><div>2人の負担は同額です</div>`
+ : d>0
+ ? `<div class="muted">現在の差分</div><div class="big">+${yen(d)}</div><div>${esc(names[0])}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`
+ : `<div class="muted">現在の差分</div><div class="big">−${yen(Math.abs(d))}</div><div>${esc(names[1])}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`;
 
-  updateAmount();
+ $("history").innerHTML=records.length?records.slice().reverse().map((r,j)=>{
+   const i=records.length-1-j;
+   return `<tr><td>${esc(r.date)}</td><td>${esc(names[Number(r.person)]||"不明")}</td><td>${esc(r.choreName)}</td><td>${yen(r.amount)}</td><td><button type="button" class="secondary small" onclick="delRecord(${i})">削除</button></td></tr>`;
+ }).join(""):'<tr><td colspan="5">まだ記録がありません</td></tr>';
 
-  const total=[0,0],count=[0,0];
-  records.forEach(r=>{
-    const p=Number(r.person);
-    if(p===0||p===1){ total[p]+=Number(r.amount)||0; count[p]++; }
-  });
-
-  $("summary").innerHTML=[0,1].map(i=>`<div class="stat"><span class="muted">${esc(names[i])}</span><b>${yen(total[i])}</b><span>${count[i]}件</span></div>`).join("");
-
-  const d=total[0]-total[1];
-  $("balance").innerHTML=d===0
-    ? `<div class="muted">現在の差分</div><div class="big">±${yen(0)}</div><div>2人の負担は同額です</div>`
-    : d>0
-    ? `<div class="muted">現在の差分</div><div class="big">+${yen(d)}</div><div>${esc(names[0])}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`
-    : `<div class="muted">現在の差分</div><div class="big">−${yen(Math.abs(d))}</div><div>${esc(names[1])}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`;
-
-  $("history").innerHTML=records.length
-    ? records.slice().reverse().map((r,j)=>{
-        const i=records.length-1-j;
-        return `<tr><td>${esc(r.date)}</td><td>${esc(names[Number(r.person)]||"不明")}</td><td>${esc(r.choreName)}</td><td>${yen(r.amount)}</td><td><button type="button" class="secondary small" onclick="delRecord(${i})">削除</button></td></tr>`;
-      }).join("")
-    : '<tr><td colspan="5">まだ記録がありません</td></tr>';
-
-  renderMonthly();
+ renderMonthly();
 }
 
 $("chore").addEventListener("change",updateAmount);
-
 $("addRecord").addEventListener("click",()=>{
-  const c=chores.find(x=>x.id===$("chore").value);
-  if(!c){ alert("先に家事項目を追加してください"); return; }
-
-  const date=$("date").value || new Date().toISOString().slice(0,10);
-  const person=Number($("person").value);
-
-  records.push({
-    id:uid(),
-    date,
-    person,
-    choreId:c.id,
-    choreName:c.name,
-    amount:Number(c.amount)
-  });
-
-  if(persist()){
-    render();
-    $("savedMsg").style.display="block";
-    setTimeout(()=>$("savedMsg").style.display="none",1200);
-  }
+ const c=chores.find(x=>x.id===$("chore").value);
+ if(!c){alert("先に「家事項目を管理」から家事を追加してください");return}
+ records.push({id:uid(),date:$("date").value||new Date().toISOString().slice(0,10),person:Number($("person").value),choreId:c.id,choreName:c.name,amount:Number(c.amount)});
+ if(persist()){render();$("savedMsg").style.display="block";setTimeout(()=>$("savedMsg").style.display="none",1200)}
 });
+$("saveNames").addEventListener("click",()=>{names=[$("p1").value.trim()||"1人目",$("p2").value.trim()||"2人目"];if(persist()){render();alert("名前を保存しました")}});
+$("reset").addEventListener("click",()=>{if(confirm("記録した家事をすべてリセットしますか？")){records=[];if(persist())render()}});
+window.delRecord=i=>{records.splice(i,1);if(persist())render()};
 
-$("saveNames").addEventListener("click",()=>{
-  names=[$("p1").value.trim()||"1人目",$("p2").value.trim()||"2人目"];
-  if(persist()){ render(); alert("名前を保存しました"); }
-});
-
-$("addChore").addEventListener("click",()=>{
-  const name=$("newName").value.trim();
-  const amount=Number($("newAmount").value);
-  if(!name){ alert("家事名を入力してください"); return; }
-  if(!Number.isFinite(amount)||amount<0){ alert("0円以上の金額を入力してください"); return; }
-  chores.push({id:uid(),name,amount});
-  $("newName").value="";
-  $("newAmount").value="";
-  if(persist()) render();
-});
-
-$("reset").addEventListener("click",()=>{
-  if(confirm("記録した家事をすべてリセットしますか？")){
-    records=[];
-    if(persist()) render();
-  }
-});
-
-window.delChore=id=>{
-  const c=chores.find(x=>x.id===id);
-  if(c && confirm(`「${c.name}」を削除しますか？`)){
-    chores=chores.filter(x=>x.id!==id);
-    if(persist()) render();
-  }
-};
-
-window.delRecord=i=>{
-  records.splice(i,1);
-  if(persist()) render();
-};
-
-persist();
 render();
-
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js").catch(()=>{});
-}
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
-</main>
-</body>
-</html>
+</main></body></html>

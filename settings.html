@@ -60,6 +60,6 @@ $("saveNames").addEventListener("click",async()=>{
     alert("保存できませんでした。");
   }
 });
-(async()=>{if(cloudReady()){await initCloud();await pullCloudData();names=load(NK,names);$("p1").value=names[0];$("p2").value=names[1];}})();
+(async()=>{if(cloudReady()){await bootstrapCloud();names=load(NK,names);$("p1").value=names[0];$("p2").value=names[1];}})();
 </script>
 </main></body></html>

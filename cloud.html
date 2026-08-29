@@ -32,6 +32,7 @@ code{word-break:break-all}
 <input id="householdId" placeholder="例：kaji-7f29a8c3">
 <button id="save">同期設定を保存</button>
 <button id="test" class="secondary">接続テスト</button>
+<button id="syncNow" class="secondary">今すぐ同期</button>
 <p id="status" class="muted"></p>
 </section>
 
@@ -42,7 +43,11 @@ code{word-break:break-all}
 </section>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="cloud.js"></script>
 <script>
+const CK="kaji-chores-v4",RK="kaji-records-v4",NK="kaji-names-v4";
+function loadLocal(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(e){return f}}
+let chores=loadLocal(CK,[]),records=loadLocal(RK,[]),names=loadLocal(NK,["自分","パートナー"]);
 const KEY="kaji-cloud-config-v1";
 const $=id=>document.getElementById(id);
 try{
@@ -69,5 +74,6 @@ $("test").onclick=async()=>{
    $("status").className="warn";
  }
 };
+$("syncNow").onclick=async()=>{const cfg={url:$("url").value.trim(),anonKey:$("anonKey").value.trim(),householdId:$("householdId").value.trim()};if(!cfg.url||!cfg.anonKey||!cfg.householdId){$("status").textContent="3項目すべて入力してください。";return}localStorage.setItem(KEY,JSON.stringify(cfg));cloudClient=null;const ok=await bootstrapCloud();$("status").textContent=ok?"同期しました。":"同期できませんでした。";$("status").className=ok?"ok":"warn";};
 </script>
 </main></body></html>

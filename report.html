@@ -125,8 +125,7 @@ window.addEventListener("pageshow",renderReport);
 window.addEventListener("focus",renderReport);
 (async()=>{
   if(cloudReady()){
-    await initCloud();
-    if(await pullCloudData()) renderReport();
+    if(await bootstrapCloud()) renderReport();
     startCloudRealtime(renderReport);
     setInterval(async()=>{if(await pullCloudData())renderReport()},CLOUD_POLL_MS);
   }

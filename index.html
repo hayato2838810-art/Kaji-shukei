@@ -142,16 +142,14 @@ function render(){
 
 $("chore").addEventListener("change",updateAmount);
 $("monthFilter").addEventListener("change",render);
-$("addRecord").addEventListener("click",()=>{
+$("addRecord").addEventListener("click",async()=>{
  const c=chores.find(x=>x.id===$("chore").value);
  if(!c){alert("先に「家事項目を管理」から家事を追加してください");return}
  records.push({id:uid(),date:$("date").value||new Date().toISOString().slice(0,10),person:Number($("person").value),choreId:c.id,choreName:c.name,amount:Number(c.amount)});
- if(persist()){render();$("savedMsg").style.display="block";setTimeout(()=>$("savedMsg").style.display="none",1200)}
+ if(persist()){render();$("savedMsg").style.display="block";setTimeout(()=>$("savedMsg").style.display="none",1200);if(cloudReady())await upsertRecord(records[records.length-1])}
 });
-$("reset").addEventListener("click",()=>{if(confirm("記録した家事をすべてリセットしますか？")){
-  records=[];if(persist()){render();if(cloudReady())pushRecords()}
-}});
-window.delRecord=i=>{records.splice(i,1);if(persist()){render();if(cloudReady())pushRecords()}};
+$("reset").addEventListener("click",async()=>{if(confirm("記録した家事をすべてリセットしますか？")){records=[];if(persist()){render();if(cloudReady())await resetRecordsCloud()}}});
+window.delRecord=async i=>{const target=records[i];records.splice(i,1);if(persist()){render();if(target&&cloudReady())await deleteRecordCloud(target.id)}};
 
 
 function reloadStoredData(){
@@ -166,7 +164,7 @@ window.addEventListener("focus",reloadStoredData);
 render();
 (async()=>{
   if(cloudReady()){
-    const ok=await pullCloudData();
+    const ok=await bootstrapCloud();
     if(ok) render();
     startCloudRealtime(render);
     setInterval(async()=>{if(await pullCloudData())render()},CLOUD_POLL_MS);

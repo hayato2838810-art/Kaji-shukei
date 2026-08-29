@@ -75,28 +75,27 @@ function persist(){try{localStorage.setItem(CK,JSON.stringify(chores));return tr
 function render(){
  $("master").innerHTML=chores.length?chores.map(c=>`<tr><td>${esc(c.name)}</td><td>${yen(c.amount)}</td><td><button type="button" class="secondary small" onclick="delChore('${c.id}')">削除</button></td></tr>`).join(""):'<tr><td colspan="3">家事項目がありません</td></tr>';
 }
-$("addChore").addEventListener("click",()=>{
+$("addChore").addEventListener("click",async()=>{
  const name=$("newName").value.trim(),amount=Number($("newAmount").value);
  if(!name){alert("家事名を入力してください");return}
  if(!Number.isFinite(amount)||amount<0){alert("0円以上の金額を入力してください");return}
  chores.push({id:uid(),name,amount});
  if(persist()){
   $("newName").value="";$("newAmount").value="";render();$("savedMsg").style.display="block";setTimeout(()=>$("savedMsg").style.display="none",1200);
-  if(cloudReady()) pushChores();
+  if(cloudReady()) await upsertChore(chores[chores.length-1]);
 }
 });
-window.delChore=id=>{
+window.delChore=async id=>{
  const c=chores.find(x=>x.id===id);
  if(c&&confirm(`「${c.name}」を削除しますか？`)){
   chores=chores.filter(x=>x.id!==id);
-  if(persist()){render();if(cloudReady())pushChores()}
+  if(persist()){render();if(cloudReady())await deleteChoreCloud(id)}
 }
 };
 render();
 (async()=>{
   if(cloudReady()){
-    await initCloud();
-    if(await pullCloudData()) render();
+    if(await bootstrapCloud()) render();
     startCloudRealtime(render);
     setInterval(async()=>{if(await pullCloudData())render()},CLOUD_POLL_MS);
   }

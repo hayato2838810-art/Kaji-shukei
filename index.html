@@ -1,17 +1,14 @@
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#ffffff">
-<title>家事分担</title>
+<meta name="theme-color" content="#ffffff"><title>家事分担</title>
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="cloud.js"></script>
-<style>
+<script src="store.js"></script><style>
 body{margin:0;background:#f5f5f7;color:#1d1d1f;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}
-main{max-width:760px;margin:auto;padding:20px 16px 50px}
-h1{font-size:30px;margin:8px 0 18px}
+main{max-width:760px;margin:auto;padding:20px 16px 50px}h1{font-size:30px;margin:8px 0 18px}
 .card{background:#fff;border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 1px 8px #0001}
 .grid,.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 label{display:block;font-size:13px;color:#666;margin:10px 0 5px}
@@ -22,154 +19,67 @@ button,a.navbtn{margin-top:12px;border:0;background:#1d1d1f;color:#fff;font-weig
 .stat,.balance{background:#f5f5f7;border-radius:14px;padding:14px}.stat b{display:block;font-size:24px;margin:5px 0}
 .balance{text-align:center;margin-top:12px}.big{font-size:28px;font-weight:800}.muted{font-size:13px;color:#777}
 .success{padding:10px;margin-top:10px;background:#eef9f1;border-radius:10px;color:#16794a;display:none}
+.error{padding:10px;margin-top:10px;background:#fff0f0;border-radius:10px;color:#b42318}
 table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;border-bottom:1px solid #eee;text-align:left}.scroll{overflow-x:auto}
-.monthCard{background:#f5f5f7;border-radius:14px;padding:14px;margin:10px 0}
-.monthHead{display:flex;justify-content:space-between;gap:10px;align-items:center}
-.monthDiff{font-weight:800;font-size:18px}.monthTotals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-.mini{background:#fff;border-radius:10px;padding:10px}
-.topnav{display:flex;gap:8px;margin-bottom:14px}.topnav a{flex:1;margin:0}
-@media(max-width:520px){.grid,.summary,.monthTotals{grid-template-columns:1fr}}
-</style>
-</head>
-<body><main>
+.topnav{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}.topnav a{flex:1;min-width:110px;margin:0}
+.month-title{font-size:22px;font-weight:800;margin:0 0 12px}.total-row td{font-weight:800;background:#fafafa}
+@media(max-width:520px){.grid,.summary{grid-template-columns:1fr}}
+</style></head><body><main>
 <h1>家事分担</h1>
-
 <div class="topnav">
 <a class="navbtn secondary" href="report.html">月別回数表</a>
 <a class="navbtn secondary" href="settings.html">設定</a>
 <a class="navbtn secondary" href="cloud.html">端末間同期</a>
 </div>
-
-<section class="card">
-<h2>家事を記録</h2>
-<div class="grid">
-<div><label>担当者</label><select id="person"></select></div>
-<div><label>日付</label><input id="date" type="date"></div>
-</div>
-<label>実施した家事</label>
-<select id="chore"></select>
-<p id="amountText" class="muted"></p>
-<button type="button" id="addRecord">この家事を記録する</button>
-<div id="savedMsg" class="success">記録しました</div>
-</section>
-
-<section class="card">
-<h2>現在の集計</h2>
-<label>集計する月</label>
-<select id="monthFilter"></select>
-<div id="summary" class="summary" style="margin-top:12px"></div>
-<div id="balance" class="balance"></div>
-</section>
-
-<section class="card">
-<h2>記録履歴</h2>
-<div class="scroll">
-<table>
-<thead><tr><th>日付</th><th>担当</th><th>家事</th><th>金額</th><th></th></tr></thead>
-<tbody id="history"></tbody>
-</table>
-</div>
-<button type="button" id="reset" class="danger">家事の記録をすべてリセット</button>
-<p class="muted">家事項目と金額は残り、実施履歴だけ削除します。</p>
-</section>
-
-
+<section class="card"><h2>家事を記録</h2>
+<div class="grid"><div><label>担当者</label><select id="person"></select></div>
+<div><label>日付</label><input id="date" type="date"></div></div>
+<label>実施した家事</label><select id="chore"></select><p id="amountText" class="muted"></p>
+<button id="addRecord">この家事を記録する</button><div id="msg" class="success">記録しました</div></section>
+<section class="card"><h2>現在の集計</h2><label>集計する月</label><select id="monthFilter"></select>
+<div id="summary" class="summary" style="margin-top:12px"></div><div id="balance" class="balance"></div></section>
+<section class="card"><h2>記録履歴</h2><div class="scroll"><table><thead><tr><th>日付</th><th>担当</th><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="history"></tbody></table></div>
+<button id="reset" class="danger">家事の記録をすべてリセット</button></section>
 <script>
-const CK="kaji-chores-v4",RK="kaji-records-v4",NK="kaji-names-v4";
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
-const $=id=>document.getElementById(id);
-const yen=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY",maximumFractionDigits:0}).format(n);
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-function load(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(e){return f}}
-
-let chores=load(CK,[
-{id:uid(),name:"皿洗い",amount:100},
-{id:uid(),name:"洗濯",amount:150},
-{id:uid(),name:"掃除",amount:200},
-{id:uid(),name:"料理",amount:300}
-]);
-let records=load(RK,[]);
-let names=load(NK,["自分","パートナー"]);
-
+const $=id=>document.getElementById(id),yen=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY",maximumFractionDigits:0}).format(n);
+let st={chores:[],records:[],names:["自分","パートナー"]};
 $("date").value=new Date().toISOString().slice(0,10);
-
-
-function persist(){
- try{
-  localStorage.setItem(CK,JSON.stringify(chores));
-  localStorage.setItem(RK,JSON.stringify(records));
-  localStorage.setItem(NK,JSON.stringify(names));
-  return true;
- }catch(e){alert("保存できませんでした。");return false}
-}
-
-function updateAmount(){
- const c=chores.find(x=>x.id===$("chore").value);
- $("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:"";
-}
-
 function render(){
- $("person").innerHTML=names.map((n,i)=>`<option value="${i}">${esc(n)}</option>`).join("");
- $("chore").innerHTML=chores.length?chores.map(c=>`<option value="${c.id}">${esc(c.name)}（${yen(c.amount)}）</option>`).join(""):'<option value="">家事項目がありません</option>';
- updateAmount();
-
- const months=[...new Set(records.map(r=>(r.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
- const previous=$("monthFilter").value || "all";
- const options=["all",...months];
- $("monthFilter").innerHTML=options.map(v=>`<option value="${v}">${v==="all"?"すべて":v.replace("-","/")}</option>`).join("");
- $("monthFilter").value=options.includes(previous)?previous:"all";
-
+ const selectedPerson=$("person").value;
+ const selectedChore=$("chore").value;
  const selectedMonth=$("monthFilter").value;
- const filtered=selectedMonth==="all" ? records : records.filter(r=>(r.date||"").slice(0,7)===selectedMonth);
 
- const total=[0,0],count=[0,0];
- filtered.forEach(r=>{const p=Number(r.person);if(p===0||p===1){total[p]+=Number(r.amount)||0;count[p]++}});
- $("summary").innerHTML=[0,1].map(i=>`<div class="stat"><span class="muted">${esc(names[i])}</span><b>${yen(total[i])}</b><span>${count[i]}件</span></div>`).join("");
+ st=KajiStore.snapshot();
 
- const d=total[0]-total[1];
- $("balance").innerHTML=d===0
- ? `<div class="muted">現在の差分</div><div class="big">±${yen(0)}</div><div>2人の負担は同額です</div>`
- : d>0
- ? `<div class="muted">現在の差分</div><div class="big">+${yen(d)}</div><div>${esc(names[0])}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`
- : `<div class="muted">現在の差分</div><div class="big">−${yen(Math.abs(d))}</div><div>${esc(names[1])}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`;
+ $("person").innerHTML=st.names.map((n,i)=>`<option value="${i}">${n}</option>`).join("");
+ if(selectedPerson!=="" && [...$("person").options].some(o=>o.value===selectedPerson)){
+   $("person").value=selectedPerson;
+ }
 
- $("history").innerHTML=records.length?records.slice().reverse().map((r,j)=>{
-   const i=records.length-1-j;
-   return `<tr><td>${esc(r.date)}</td><td>${esc(names[Number(r.person)]||"不明")}</td><td>${esc(r.choreName)}</td><td>${yen(r.amount)}</td><td><button type="button" class="secondary small" onclick="delRecord(${i})">削除</button></td></tr>`;
- }).join(""):'<tr><td colspan="5">まだ記録がありません</td></tr>';
+ $("chore").innerHTML=st.chores.map(c=>`<option value="${c.id}">${c.name}（${yen(c.amount)}）</option>`).join("");
+ if(selectedChore && [...$("chore").options].some(o=>o.value===selectedChore)){
+   $("chore").value=selectedChore;
+ }
 
+ const c=st.chores.find(x=>x.id===$("chore").value)||st.chores[0];
+ $("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:"";
+ const months=[...new Set(st.records.map(r=>(r.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
+ const prev=selectedMonth||"all";
+ $("monthFilter").innerHTML=["all",...months].map(m=>`<option value="${m}">${m==="all"?"すべて":m.replace("-","/")}</option>`).join("");
+ $("monthFilter").value=["all",...months].includes(prev)?prev:"all";
+ const f=$("monthFilter").value==="all"?st.records:st.records.filter(r=>(r.date||"").slice(0,7)===$("monthFilter").value);
+ const t=[0,0],cnt=[0,0];f.forEach(r=>{t[r.person]+=Number(r.amount);cnt[r.person]++});
+ $("summary").innerHTML=[0,1].map(i=>`<div class="stat"><span class="muted">${st.names[i]}</span><b>${yen(t[i])}</b><span>${cnt[i]}件</span></div>`).join("");
+ const d=t[0]-t[1];$("balance").innerHTML=d===0?`<div class="muted">現在の差分</div><div class="big">±${yen(0)}</div><div>2人の負担は同額です</div>`:d>0?`<div class="muted">現在の差分</div><div class="big">+${yen(d)}</div><div>${st.names[0]}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`:`<div class="muted">現在の差分</div><div class="big">−${yen(Math.abs(d))}</div><div>${st.names[1]}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`;
+ $("history").innerHTML=st.records.length?st.records.slice().reverse().map(r=>`<tr><td>${r.date}</td><td>${st.names[r.person]}</td><td>${r.choreName}</td><td>${yen(r.amount)}</td><td><button class="secondary small" data-del="${r.id}">削除</button></td></tr>`).join(""):'<tr><td colspan="5">まだ記録がありません</td></tr>';
+ document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{try{await KajiStore.removeRecord(b.dataset.del)}catch(e){alert(e.message)}});
 }
-
-$("chore").addEventListener("change",updateAmount);
-$("monthFilter").addEventListener("change",render);
-$("addRecord").addEventListener("click",async()=>{
- const c=chores.find(x=>x.id===$("chore").value);
- if(!c){alert("先に「家事項目を管理」から家事を追加してください");return}
- records.push({id:uid(),date:$("date").value||new Date().toISOString().slice(0,10),person:Number($("person").value),choreId:c.id,choreName:c.name,amount:Number(c.amount)});
- if(persist()){render();$("savedMsg").style.display="block";setTimeout(()=>$("savedMsg").style.display="none",1200);if(cloudReady())await upsertRecord(records[records.length-1])}
-});
-$("reset").addEventListener("click",async()=>{if(confirm("記録した家事をすべてリセットしますか？")){records=[];if(persist()){render();if(cloudReady())await resetRecordsCloud()}}});
-window.delRecord=async i=>{const target=records[i];records.splice(i,1);if(persist()){render();if(target&&cloudReady())await deleteRecordCloud(target.id)}};
-
-
-function reloadStoredData(){
-  chores=load(CK,chores);
-  records=load(RK,records);
-  names=load(NK,names);
-  render();
-}
-window.addEventListener("pageshow",reloadStoredData);
-window.addEventListener("focus",reloadStoredData);
-
-render();
-(async()=>{
-  if(cloudReady()){
-    const ok=await bootstrapCloud();
-    if(ok) render();
-    startCloudRealtime(render);
-    setInterval(async()=>{if(await pullCloudData())render()},CLOUD_POLL_MS);
-  }
-})();
-if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
-</script>
-</main></body></html>
+$("chore").onchange=()=>{
+ const c=st.chores.find(x=>x.id===$("chore").value);
+ $("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:"";
+};
+$("monthFilter").onchange=render;
+$("addRecord").onclick=async()=>{try{await KajiStore.addRecord({date:$("date").value,person:Number($("person").value),choreId:$("chore").value});$("msg").style.display="block";setTimeout(()=>$("msg").style.display="none",1000)}catch(e){alert(e.message)}};
+$("reset").onclick=async()=>{if(confirm("記録をすべてリセットしますか？"))try{await KajiStore.resetRecords()}catch(e){alert(e.message)}};
+KajiStore.subscribe(render);KajiStore.init().then(render);
+</script></main></body></html>

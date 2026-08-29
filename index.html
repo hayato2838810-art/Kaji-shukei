@@ -43,8 +43,15 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;
 <script>
 const $=id=>document.getElementById(id),yen=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY",maximumFractionDigits:0}).format(n);
 let st={chores:[],records:[],names:["自分","パートナー"]};
+let selectIsOpen=false;
+let pendingRender=false;
 $("date").value=new Date().toISOString().slice(0,10);
 function render(){
+ if(selectIsOpen){
+   pendingRender=true;
+   return;
+ }
+ pendingRender=false;
  const selectedPerson=$("person").value;
  const selectedChore=$("chore").value;
  const selectedMonth=$("monthFilter").value;
@@ -74,11 +81,26 @@ function render(){
  $("history").innerHTML=st.records.length?st.records.slice().reverse().map(r=>`<tr><td>${r.date}</td><td>${st.names[r.person]}</td><td>${r.choreName}</td><td>${yen(r.amount)}</td><td><button class="secondary small" data-del="${r.id}">削除</button></td></tr>`).join(""):'<tr><td colspan="5">まだ記録がありません</td></tr>';
  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{try{await KajiStore.removeRecord(b.dataset.del)}catch(e){alert(e.message)}});
 }
-$("chore").onchange=()=>{
- const c=st.chores.find(x=>x.id===$("chore").value);
- $("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:"";
-};
-$("monthFilter").onchange=render;
+function lockSelect(){selectIsOpen=true;}
+function unlockSelect(){
+ selectIsOpen=false;
+ if(pendingRender) setTimeout(render,50);
+}
+["person","chore","monthFilter"].forEach(id=>{
+ const el=$(id);
+ el.addEventListener("focus",lockSelect);
+ el.addEventListener("pointerdown",lockSelect);
+ el.addEventListener("blur",unlockSelect);
+ el.addEventListener("change",()=>{
+   selectIsOpen=false;
+   if(id==="chore"){
+     const c=st.chores.find(x=>x.id===$("chore").value);
+     $("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:"";
+   }
+   if(id==="monthFilter") render();
+   else if(pendingRender) setTimeout(render,50);
+ });
+});
 $("addRecord").onclick=async()=>{try{await KajiStore.addRecord({date:$("date").value,person:Number($("person").value),choreId:$("chore").value});$("msg").style.display="block";setTimeout(()=>$("msg").style.display="none",1000)}catch(e){alert(e.message)}};
 $("reset").onclick=async()=>{if(confirm("記録をすべてリセットしますか？"))try{await KajiStore.resetRecords()}catch(e){alert(e.message)}};
 KajiStore.subscribe(render);KajiStore.init().then(render);

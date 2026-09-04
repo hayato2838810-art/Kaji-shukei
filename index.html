@@ -45,6 +45,11 @@ const $=id=>document.getElementById(id),yen=n=>new Intl.NumberFormat("ja-JP",{st
 let st={chores:[],records:[],names:["自分","パートナー"]};
 let selectIsOpen=false;
 let pendingRender=false;
+let monthWasChosen=false;
+function getCurrentMonth(){
+ const now=new Date();
+ return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+}
 $("date").value=new Date().toISOString().slice(0,10);
 function render(){
  if(selectIsOpen){
@@ -70,10 +75,12 @@ function render(){
 
  const c=st.chores.find(x=>x.id===$("chore").value)||st.chores[0];
  $("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:"";
- const months=[...new Set(st.records.map(r=>(r.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
- const prev=selectedMonth||"all";
- $("monthFilter").innerHTML=["all",...months].map(m=>`<option value="${m}">${m==="all"?"すべて":m.replace("-","/")}</option>`).join("");
- $("monthFilter").value=["all",...months].includes(prev)?prev:"all";
+ const currentMonth=getCurrentMonth();
+ const months=[...new Set([currentMonth,...st.records.map(r=>(r.date||"").slice(0,7)).filter(Boolean)])].sort().reverse();
+ const options=["all",...months];
+ const prev=monthWasChosen && options.includes(selectedMonth) ? selectedMonth : currentMonth;
+ $("monthFilter").innerHTML=options.map(m=>`<option value="${m}">${m==="all"?"すべて":m.replace("-","/")}</option>`).join("");
+ $("monthFilter").value=options.includes(prev)?prev:currentMonth;
  const f=$("monthFilter").value==="all"?st.records:st.records.filter(r=>(r.date||"").slice(0,7)===$("monthFilter").value);
  const t=[0,0],cnt=[0,0];f.forEach(r=>{t[r.person]+=Number(r.amount);cnt[r.person]++});
  $("summary").innerHTML=[0,1].map(i=>`<div class="stat"><span class="muted">${st.names[i]}</span><b>${yen(t[i])}</b><span>${cnt[i]}件</span></div>`).join("");
@@ -97,8 +104,10 @@ function unlockSelect(){
      const c=st.chores.find(x=>x.id===$("chore").value);
      $("amountText").textContent=c?`この家事の金額：${yen(c.amount)}`:"";
    }
-   if(id==="monthFilter") render();
-   else if(pendingRender) setTimeout(render,50);
+   if(id==="monthFilter"){
+     monthWasChosen=true;
+     render();
+   } else if(pendingRender) setTimeout(render,50);
  });
 });
 $("addRecord").onclick=async()=>{try{await KajiStore.addRecord({date:$("date").value,person:Number($("person").value),choreId:$("chore").value});$("msg").style.display="block";setTimeout(()=>$("msg").style.display="none",1000)}catch(e){alert(e.message)}};

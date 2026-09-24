@@ -29,9 +29,31 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;
 <section class="card"><h2>新しい家事を登録</h2><div class="grid"><div><label>家事名</label><input id="name"></div><div><label>金額</label><input id="amount" type="number" min="0"></div></div>
 <button id="add">家事項目を追加</button></section>
 <section class="card"><h2>登録済みの家事</h2><table><thead><tr><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="list"></tbody></table></section>
+<section class="card"><h2>削除した家事</h2>
+<p class="muted">削除した家事項目はここから復元できます。</p>
+<table><thead><tr><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="deletedList"></tbody></table>
+</section>
 <script>
 const $=id=>document.getElementById(id),yen=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY",maximumFractionDigits:0}).format(n);
-function render(){const s=KajiStore.snapshot();$("list").innerHTML=s.chores.map(c=>`<tr><td>${c.name}</td><td>${yen(c.amount)}</td><td><button class="secondary small" data-id="${c.id}">削除</button></td></tr>`).join("");document.querySelectorAll("[data-id]").forEach(b=>b.onclick=async()=>{if(confirm("削除しますか？"))try{await KajiStore.removeChore(b.dataset.id)}catch(e){alert(e.message)}})}
+function render(){
+ const s=KajiStore.snapshot();
+ $("list").innerHTML=s.chores.length
+  ? s.chores.map(c=>`<tr><td>${c.name}</td><td>${yen(c.amount)}</td><td><button class="secondary small" data-id="${c.id}">削除</button></td></tr>`).join("")
+  : '<tr><td colspan="3">登録済みの家事はありません</td></tr>';
+
+ $("deletedList").innerHTML=s.deletedChores&&s.deletedChores.length
+  ? s.deletedChores.map(c=>`<tr><td>${c.name}</td><td>${yen(c.amount)}</td><td><button class="secondary small" data-restore="${c.id}">復元</button></td></tr>`).join("")
+  : '<tr><td colspan="3">削除した家事はありません</td></tr>';
+
+ document.querySelectorAll("[data-id]").forEach(b=>b.onclick=async()=>{
+   if(confirm("この家事項目を削除しますか？\nあとで復元できます。"))
+     try{await KajiStore.removeChore(b.dataset.id)}catch(e){alert(e.message)}
+ });
+
+ document.querySelectorAll("[data-restore]").forEach(b=>b.onclick=async()=>{
+   try{await KajiStore.restoreChore(b.dataset.restore)}catch(e){alert(e.message)}
+ });
+}
 $("add").onclick=async()=>{const n=$("name").value.trim(),a=Number($("amount").value);if(!n||!Number.isFinite(a)||a<0)return alert("家事名と0円以上の金額を入力してください");try{await KajiStore.addChore(n,a);$("name").value="";$("amount").value=""}catch(e){alert(e.message)}};
 KajiStore.subscribe(render);KajiStore.init().then(render);
 </script></main></body></html>

@@ -1,9 +1,9 @@
 
 (function(){
-  const CK="kaji-chores-v4", RK="kaji-records-v4", NK="kaji-names-v4", CFG="kaji-cloud-config-v1";
+  const CK="kaji-chores-v4", RK="kaji-records-v4", NK="kaji-names-v4", DK="kaji-deleted-chores-v1", CFG="kaji-cloud-config-v1";
   const POLL=3000;
   let client=null, channel=null, timer=null, listeners=[];
-  let state={chores:[],records:[],names:["自分","パートナー"]};
+  let state={chores:[],records:[],names:["自分","パートナー"],deletedChores:[]};
   let lastError="";
 
   const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
@@ -11,7 +11,7 @@
   const saveLocal=()=>{
     localStorage.setItem(CK,JSON.stringify(state.chores));
     localStorage.setItem(RK,JSON.stringify(state.records));
-    localStorage.setItem(NK,JSON.stringify(state.names));
+    localStorage.setItem(NK,JSON.stringify(state.names));localStorage.setItem(DK,JSON.stringify(state.deletedChores));
   };
   const loadLocal=()=>{
     state.chores=parse(CK,null)||[
@@ -21,7 +21,7 @@
       {id:uid(),name:"料理",amount:300}
     ];
     state.records=parse(RK,[]);
-    state.names=parse(NK,["自分","パートナー"]);
+    state.names=parse(NK,["自分","パートナー"]);state.deletedChores=parse(DK,[]);
     saveLocal();
   };
   const emit=()=>listeners.forEach(fn=>{try{fn(snapshot())}catch(e){console.error(e)}});
@@ -77,6 +77,12 @@
     if(!cloud.settings.some(x=>x.setting_key==="names")){
       const {error}=await client.from("household_settings").upsert(
         {household_id:c.householdId,setting_key:"names",setting_value:state.names},
+        {onConflict:"household_id,setting_key"});
+      if(error)return fail(error);
+    }
+    if(!cloud.settings.some(x=>x.setting_key==="deleted_chores")){
+      const {error}=await client.from("household_settings").upsert(
+        {household_id:c.householdId,setting_key:"deleted_chores",setting_value:state.deletedChores},
         {onConflict:"household_id,setting_key"});
       if(error)return fail(error);
     }
@@ -136,6 +142,14 @@
       {onConflict:"household_id,setting_key"});
     return error?fail(error):true;
   }
+  async function writeDeletedChores(){
+    if(!configured())return true;
+    if(!(await initClient()))return false;const c=cfg();
+    const {error}=await client.from("household_settings").upsert(
+      {household_id:c.householdId,setting_key:"deleted_chores",setting_value:state.deletedChores},
+      {onConflict:"household_id,setting_key"});
+    return error?fail(error):true;
+  }
 
   async function startAuto(){
     if(!configured())return;
@@ -185,8 +199,26 @@
     if(!(await writeChore(ch)))throw new Error(lastError||"クラウド保存に失敗しました");
   }
   async function removeChore(id){
-    state.chores=state.chores.filter(x=>x.id!==id);saveLocal();emit();
+    const target=state.chores.find(x=>x.id===id);
+    if(!target)return;
+    if(!state.deletedChores.some(x=>x.id===id)){
+      state.deletedChores.push({...target,deletedAt:new Date().toISOString()});
+    }
+    state.chores=state.chores.filter(x=>x.id!==id);
+    saveLocal();emit();
+    if(!(await writeDeletedChores()))throw new Error(lastError||"削除済み家事の保存に失敗しました");
     if(!(await deleteChoreCloud(id)))throw new Error(lastError||"クラウド削除に失敗しました");
+  }
+
+  async function restoreChore(id){
+    const target=state.deletedChores.find(x=>x.id===id);
+    if(!target)return;
+    const restored={id:target.id,name:target.name,amount:Number(target.amount)};
+    if(!state.chores.some(x=>x.id===id))state.chores.push(restored);
+    state.deletedChores=state.deletedChores.filter(x=>x.id!==id);
+    saveLocal();emit();
+    if(!(await writeChore(restored)))throw new Error(lastError||"家事項目の復元に失敗しました");
+    if(!(await writeDeletedChores()))throw new Error(lastError||"削除済み一覧の更新に失敗しました");
   }
   async function setNames(names){
     state.names=names;saveLocal();emit();
@@ -218,7 +250,7 @@
   window.KajiStore={
     init,snapshot,subscribe:(fn)=>{listeners.push(fn);return()=>listeners=listeners.filter(x=>x!==fn)},
     configured,config:cfg,saveConfig,writeTest,cloudCounts,pull,syncInitial,startAuto,
-    addRecord,removeRecord,resetRecords,addChore,removeChore,setNames,
+    addRecord,removeRecord,resetRecords,addChore,removeChore,restoreChore,setNames,
     lastError:()=>lastError
   };
 })();

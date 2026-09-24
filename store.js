@@ -2,7 +2,7 @@
 (function(){
   const CK="kaji-chores-v4", RK="kaji-records-v4", NK="kaji-names-v4", DK="kaji-deleted-chores-v1", DRK="kaji-deleted-records-v1", CFG="kaji-cloud-config-v1";
   const POLL=3000;
-  let client=null, channel=null, timer=null, listeners=[];
+  let client=null, channel=null, timer=null, listeners=[], mutationDepth=0;
   let state={chores:[],records:[],names:["自分","パートナー"],deletedChores:[],deletedRecords:[]};
   let lastError="";
 
@@ -117,6 +117,7 @@
   }
 
   async function pull(){
+    if(mutationDepth>0)return true;
     if(!configured())return true;
     const cloud=await fetchCloud();if(!cloud)return false;
     applyCloud(cloud);return true;
@@ -209,23 +210,87 @@
   }
   async function removeRecord(id){
     const target=state.records.find(x=>x.id===id);
-    if(!target)return;
-    if(!state.deletedRecords.some(x=>x.id===id))state.deletedRecords.push({...target,deletedAt:new Date().toISOString()});
-    state.records=state.records.filter(x=>x.id!==id);
-    saveLocal();emit();
-    if(!(await writeDeletedRecords()))throw new Error(lastError||"削除済み記録の保存に失敗しました");
-    if(!(await deleteRecordCloud(id)))throw new Error(lastError||"クラウド削除に失敗しました");
+    if(!target)return false;
+
+    mutationDepth++;
+    const previousDeleted=[...state.deletedRecords];
+    const previousRecords=[...state.records];
+
+    try{
+      if(!state.deletedRecords.some(x=>x.id===id)){
+        state.deletedRecords.push({...target,deletedAt:new Date().toISOString()});
+      }
+      state.records=state.records.filter(x=>x.id!==id);
+      saveLocal();
+      emit();
+
+      if(!(await writeDeletedRecords())){
+        throw new Error(lastError||"削除済み記録の保存に失敗しました");
+      }
+      if(!(await deleteRecordCloud(id))){
+        throw new Error(lastError||"クラウド削除に失敗しました");
+      }
+      return true;
+    }catch(e){
+      state.deletedRecords=previousDeleted;
+      state.records=previousRecords;
+      saveLocal();
+      emit();
+      throw e;
+    }finally{
+      mutationDepth=Math.max(0,mutationDepth-1);
+      if(configured()){
+        const cloud=await fetchCloud();
+        if(cloud)applyCloud(cloud);
+      }
+    }
   }
 
   async function restoreRecord(id){
     const target=state.deletedRecords.find(x=>x.id===id);
-    if(!target)return;
-    const restored={id:target.id,date:target.date,person:Number(target.person),choreId:target.choreId||"",choreName:target.choreName,amount:Number(target.amount)};
-    if(!state.records.some(x=>x.id===id))state.records.push(restored);
-    state.deletedRecords=state.deletedRecords.filter(x=>x.id!==id);
-    saveLocal();emit();
-    if(!(await writeRecord(restored)))throw new Error(lastError||"記録の復元に失敗しました");
-    if(!(await writeDeletedRecords()))throw new Error(lastError||"削除済み記録一覧の更新に失敗しました");
+    if(!target)return false;
+
+    const restored={
+      id:target.id,
+      date:target.date,
+      person:Number(target.person),
+      choreId:target.choreId||"",
+      choreName:target.choreName,
+      amount:Number(target.amount)
+    };
+
+    mutationDepth++;
+    const previousDeleted=[...state.deletedRecords];
+    const previousRecords=[...state.records];
+
+    try{
+      state.deletedRecords=state.deletedRecords.filter(x=>x.id!==id);
+      if(!state.records.some(x=>x.id===id))state.records.push(restored);
+      saveLocal();
+      emit();
+
+      // First remove it from the cloud-side deleted list, then restore the actual record.
+      if(!(await writeDeletedRecords())){
+        throw new Error(lastError||"削除済み記録一覧の更新に失敗しました");
+      }
+      if(!(await writeRecord(restored))){
+        throw new Error(lastError||"記録の復元に失敗しました");
+      }
+
+      return true;
+    }catch(e){
+      state.deletedRecords=previousDeleted;
+      state.records=previousRecords;
+      saveLocal();
+      emit();
+      throw e;
+    }finally{
+      mutationDepth=Math.max(0,mutationDepth-1);
+      if(configured()){
+        const cloud=await fetchCloud();
+        if(cloud)applyCloud(cloud);
+      }
+    }
   }
   async function resetRecords(){
     const deletedAt=new Date().toISOString();

@@ -42,6 +42,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;
 <button id="reset" class="danger">家事の記録をすべてリセット</button></section>
 <section class="card"><h2>削除した記録</h2>
 <p class="muted">削除した記録はここに残ります。「復元」を押すと元の記録に戻ります。</p>
+<div id="restoreMsg" class="success">記録を復元しました</div>
 <div class="scroll"><table><thead><tr><th>日付</th><th>担当</th><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="deletedHistory"></tbody></table></div>
 </section>
 <script>
@@ -96,7 +97,20 @@ function render(){
   : '<tr><td colspan="5">削除した記録はありません</td></tr>';
 
  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(confirm("この記録を削除しますか？\nあとで復元できます。"))try{await KajiStore.removeRecord(b.dataset.del)}catch(e){alert(e.message)}});
- document.querySelectorAll("[data-restore-record]").forEach(b=>b.onclick=async()=>{try{await KajiStore.restoreRecord(b.dataset.restoreRecord)}catch(e){alert(e.message)}});
+ document.querySelectorAll("[data-restore-record]").forEach(b=>b.onclick=async()=>{
+   b.disabled=true;
+   try{
+     const ok=await KajiStore.restoreRecord(b.dataset.restoreRecord);
+     if(ok){
+       $("restoreMsg").style.display="block";
+       setTimeout(()=>$("restoreMsg").style.display="none",1500);
+     }
+   }catch(e){
+     alert(e.message);
+   }finally{
+     b.disabled=false;
+   }
+ });
 }
 function lockSelect(){selectIsOpen=true;}
 function unlockSelect(){

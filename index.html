@@ -40,6 +40,10 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;
 <div id="summary" class="summary" style="margin-top:12px"></div><div id="balance" class="balance"></div></section>
 <section class="card"><h2>記録履歴</h2><div class="scroll"><table><thead><tr><th>日付</th><th>担当</th><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="history"></tbody></table></div>
 <button id="reset" class="danger">家事の記録をすべてリセット</button></section>
+<section class="card"><h2>削除した記録</h2>
+<p class="muted">削除した家事記録はここから復元できます。</p>
+<div class="scroll"><table><thead><tr><th>日付</th><th>担当</th><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="deletedHistory"></tbody></table></div>
+</section>
 <script>
 const $=id=>document.getElementById(id),yen=n=>new Intl.NumberFormat("ja-JP",{style:"currency",currency:"JPY",maximumFractionDigits:0}).format(n);
 let st={chores:[],records:[],names:["自分","パートナー"]};
@@ -86,7 +90,13 @@ function render(){
  $("summary").innerHTML=[0,1].map(i=>`<div class="stat"><span class="muted">${st.names[i]}</span><b>${yen(t[i])}</b><span>${cnt[i]}件</span></div>`).join("");
  const d=t[0]-t[1];$("balance").innerHTML=d===0?`<div class="muted">現在の差分</div><div class="big">${yen(0)}</div><div>2人の負担は同額です</div>`:d>0?`<div class="muted">現在の差分</div><div class="big">${yen(Math.abs(d))}</div><div>${st.names[0]}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`:`<div class="muted">現在の差分</div><div class="big">${yen(Math.abs(d))}</div><div>${st.names[1]}の方が ${yen(Math.abs(d))} 多く家事をしています</div>`;
  $("history").innerHTML=st.records.length?st.records.slice().reverse().map(r=>`<tr><td>${r.date}</td><td>${st.names[r.person]}</td><td>${r.choreName}</td><td>${yen(r.amount)}</td><td><button class="secondary small" data-del="${r.id}">削除</button></td></tr>`).join(""):'<tr><td colspan="5">まだ記録がありません</td></tr>';
- document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{try{await KajiStore.removeRecord(b.dataset.del)}catch(e){alert(e.message)}});
+
+ $("deletedHistory").innerHTML=st.deletedRecords&&st.deletedRecords.length
+  ? st.deletedRecords.slice().reverse().map(r=>`<tr><td>${r.date}</td><td>${st.names[r.person]||"不明"}</td><td>${r.choreName}</td><td>${yen(r.amount)}</td><td><button class="secondary small" data-restore-record="${r.id}">復元</button></td></tr>`).join("")
+  : '<tr><td colspan="5">削除した記録はありません</td></tr>';
+
+ document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(confirm("この記録を削除しますか？\nあとで復元できます。"))try{await KajiStore.removeRecord(b.dataset.del)}catch(e){alert(e.message)}});
+ document.querySelectorAll("[data-restore-record]").forEach(b=>b.onclick=async()=>{try{await KajiStore.restoreRecord(b.dataset.restoreRecord)}catch(e){alert(e.message)}});
 }
 function lockSelect(){selectIsOpen=true;}
 function unlockSelect(){

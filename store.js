@@ -1,9 +1,9 @@
 
 (function(){
-  const CK="kaji-chores-v4", RK="kaji-records-v4", NK="kaji-names-v4", DK="kaji-deleted-chores-v1", CFG="kaji-cloud-config-v1";
+  const CK="kaji-chores-v4", RK="kaji-records-v4", NK="kaji-names-v4", DK="kaji-deleted-chores-v1", DRK="kaji-deleted-records-v1", CFG="kaji-cloud-config-v1";
   const POLL=3000;
   let client=null, channel=null, timer=null, listeners=[];
-  let state={chores:[],records:[],names:["自分","パートナー"],deletedChores:[]};
+  let state={chores:[],records:[],names:["自分","パートナー"],deletedChores:[],deletedRecords:[]};
   let lastError="";
 
   const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
@@ -11,7 +11,7 @@
   const saveLocal=()=>{
     localStorage.setItem(CK,JSON.stringify(state.chores));
     localStorage.setItem(RK,JSON.stringify(state.records));
-    localStorage.setItem(NK,JSON.stringify(state.names));localStorage.setItem(DK,JSON.stringify(state.deletedChores));
+    localStorage.setItem(NK,JSON.stringify(state.names));localStorage.setItem(DK,JSON.stringify(state.deletedChores));localStorage.setItem(DRK,JSON.stringify(state.deletedRecords));
   };
   const loadLocal=()=>{
     state.chores=parse(CK,null)||[
@@ -21,7 +21,7 @@
       {id:uid(),name:"料理",amount:300}
     ];
     state.records=parse(RK,[]);
-    state.names=parse(NK,["自分","パートナー"]);state.deletedChores=parse(DK,[]);
+    state.names=parse(NK,["自分","パートナー"]);state.deletedChores=parse(DK,[]);state.deletedRecords=parse(DRK,[]);
     saveLocal();
   };
   const emit=()=>listeners.forEach(fn=>{try{fn(snapshot())}catch(e){console.error(e)}});
@@ -83,6 +83,12 @@
     if(!cloud.settings.some(x=>x.setting_key==="deleted_chores")){
       const {error}=await client.from("household_settings").upsert(
         {household_id:c.householdId,setting_key:"deleted_chores",setting_value:state.deletedChores},
+        {onConflict:"household_id,setting_key"});
+      if(error)return fail(error);
+    }
+    if(!cloud.settings.some(x=>x.setting_key==="deleted_records")){
+      const {error}=await client.from("household_settings").upsert(
+        {household_id:c.householdId,setting_key:"deleted_records",setting_value:state.deletedRecords},
         {onConflict:"household_id,setting_key"});
       if(error)return fail(error);
     }
@@ -150,6 +156,14 @@
       {onConflict:"household_id,setting_key"});
     return error?fail(error):true;
   }
+  async function writeDeletedRecords(){
+    if(!configured())return true;
+    if(!(await initClient()))return false;const c=cfg();
+    const {error}=await client.from("household_settings").upsert(
+      {household_id:c.householdId,setting_key:"deleted_records",setting_value:state.deletedRecords},
+      {onConflict:"household_id,setting_key"});
+    return error?fail(error):true;
+  }
 
   async function startAuto(){
     if(!configured())return;
@@ -183,8 +197,24 @@
     return r;
   }
   async function removeRecord(id){
-    state.records=state.records.filter(x=>x.id!==id);saveLocal();emit();
+    const target=state.records.find(x=>x.id===id);
+    if(!target)return;
+    if(!state.deletedRecords.some(x=>x.id===id))state.deletedRecords.push({...target,deletedAt:new Date().toISOString()});
+    state.records=state.records.filter(x=>x.id!==id);
+    saveLocal();emit();
+    if(!(await writeDeletedRecords()))throw new Error(lastError||"削除済み記録の保存に失敗しました");
     if(!(await deleteRecordCloud(id)))throw new Error(lastError||"クラウド削除に失敗しました");
+  }
+
+  async function restoreRecord(id){
+    const target=state.deletedRecords.find(x=>x.id===id);
+    if(!target)return;
+    const restored={id:target.id,date:target.date,person:Number(target.person),choreId:target.choreId||"",choreName:target.choreName,amount:Number(target.amount)};
+    if(!state.records.some(x=>x.id===id))state.records.push(restored);
+    state.deletedRecords=state.deletedRecords.filter(x=>x.id!==id);
+    saveLocal();emit();
+    if(!(await writeRecord(restored)))throw new Error(lastError||"記録の復元に失敗しました");
+    if(!(await writeDeletedRecords()))throw new Error(lastError||"削除済み記録一覧の更新に失敗しました");
   }
   async function resetRecords(){
     state.records=[];saveLocal();emit();
@@ -250,7 +280,7 @@
   window.KajiStore={
     init,snapshot,subscribe:(fn)=>{listeners.push(fn);return()=>listeners=listeners.filter(x=>x!==fn)},
     configured,config:cfg,saveConfig,writeTest,cloudCounts,pull,syncInitial,startAuto,
-    addRecord,removeRecord,resetRecords,addChore,removeChore,restoreChore,setNames,
+    addRecord,removeRecord,restoreRecord,resetRecords,addChore,removeChore,restoreChore,setNames,
     lastError:()=>lastError
   };
 })();

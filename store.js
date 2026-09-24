@@ -54,9 +54,20 @@
       id:x.item_id,date:x.date,person:Number(x.person_index),choreId:x.chore_id||"",
       choreName:x.chore_name,amount:Number(x.amount)
     }));
-    const n=(data.settings||[]).find(x=>x.setting_key==="names");
+
+    const settings=data.settings||[];
+
+    const n=settings.find(x=>x.setting_key==="names");
     if(n&&Array.isArray(n.setting_value))state.names=n.setting_value;
-    saveLocal();emit();
+
+    const dc=settings.find(x=>x.setting_key==="deleted_chores");
+    state.deletedChores=(dc&&Array.isArray(dc.setting_value)) ? dc.setting_value : [];
+
+    const dr=settings.find(x=>x.setting_key==="deleted_records");
+    state.deletedRecords=(dr&&Array.isArray(dr.setting_value)) ? dr.setting_value : [];
+
+    saveLocal();
+    emit();
   }
 
   async function uploadMissingLocal(cloud){
@@ -217,10 +228,26 @@
     if(!(await writeDeletedRecords()))throw new Error(lastError||"削除済み記録一覧の更新に失敗しました");
   }
   async function resetRecords(){
-    state.records=[];saveLocal();emit();
+    const deletedAt=new Date().toISOString();
+
+    state.records.forEach(r=>{
+      if(!state.deletedRecords.some(x=>x.id===r.id)){
+        state.deletedRecords.push({...r,deletedAt});
+      }
+    });
+
+    state.records=[];
+    saveLocal();
+    emit();
+
+    if(!(await writeDeletedRecords())){
+      throw new Error(lastError||"削除済み記録の保存に失敗しました");
+    }
+
     if(configured()){
       if(!(await initClient()))throw new Error("Supabase初期化失敗");
-      const c=cfg();const {error}=await client.from("records").delete().eq("household_id",c.householdId);
+      const c=cfg();
+      const {error}=await client.from("records").delete().eq("household_id",c.householdId);
       if(error)throw new Error(error.message);
     }
   }

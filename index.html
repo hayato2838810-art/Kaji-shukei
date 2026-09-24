@@ -41,7 +41,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px 6px;
 <section class="card"><h2>記録履歴</h2><div class="scroll"><table><thead><tr><th>日付</th><th>担当</th><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="history"></tbody></table></div>
 <button id="reset" class="danger">家事の記録をすべてリセット</button></section>
 <section class="card"><h2>削除した記録</h2>
-<p class="muted">削除した家事記録はここから復元できます。</p>
+<p class="muted">削除した記録はここに残ります。「復元」を押すと元の記録に戻ります。</p>
 <div class="scroll"><table><thead><tr><th>日付</th><th>担当</th><th>家事</th><th>金額</th><th></th></tr></thead><tbody id="deletedHistory"></tbody></table></div>
 </section>
 <script>
@@ -121,6 +121,6 @@ function unlockSelect(){
  });
 });
 $("addRecord").onclick=async()=>{try{await KajiStore.addRecord({date:$("date").value,person:Number($("person").value),choreId:$("chore").value});$("msg").style.display="block";setTimeout(()=>$("msg").style.display="none",1000)}catch(e){alert(e.message)}};
-$("reset").onclick=async()=>{if(confirm("記録をすべてリセットしますか？"))try{await KajiStore.resetRecords()}catch(e){alert(e.message)}};
+$("reset").onclick=async()=>{if(confirm("記録をすべてリセットしますか？\nすべて「削除した記録」に移動し、あとから復元できます。"))try{await KajiStore.resetRecords()}catch(e){alert(e.message)}};
 KajiStore.subscribe(render);KajiStore.init().then(render);
 </script></main></body></html>
